@@ -230,7 +230,18 @@ class RuleGenerator:
             next_tag_list += [t+a for t in tag_list for a in append]
         if next_tag_list:
             tag_list = next_tag_list
-        # TODO: get tags for affixes
+
+        # Generate tags for affixes in the same way as for features
+        # Affixes are appended after the feature tags in the tag sequence
+        if affixes:
+            next_tag_list = []
+            for seq in permutations(sorted(affixes)):
+                append = ['']
+                for label, value in seq:
+                    append = [f'{a}.{value}' for a in append] + \
+                        [f'{a}.{value}.*' for a in append]
+                next_tag_list += [t+a for t in tag_list for a in append]
+            tag_list = next_tag_list
 
         # Create the new <def-cat>
         elem = ET.SubElement(self.GetSection('section-def-cats'), 'def-cat',
