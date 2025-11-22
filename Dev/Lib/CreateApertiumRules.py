@@ -49,8 +49,9 @@ import dataclasses
 
 from PyQt5.QtCore import QCoreApplication
 
-from flextoolslib import FTM_Name                                                 
+from flextoolslib import FTM_Name
 
+import ReadConfig
 import Utils
 
 # Define _translate for convenience
@@ -132,6 +133,11 @@ class RuleGenerator:
         self.targetDB = targetDB
         self.report = report
         self.configMap = configMap
+
+        # Get the proper noun category from configuration (e.g., 'np' for proper nouns)
+        # This is used to avoid applying capitalization rules to proper nouns
+        self.properNounCategory = ReadConfig.getConfigVal(
+            configMap, ReadConfig.PROPER_NOUN_CATEGORY, report, giveError=False)
 
         # Map each part of speech to a list of parent POSes
         self.sourceHierarchy = Utils.getCategoryHierarchy(sourceDB)
@@ -230,7 +236,18 @@ class RuleGenerator:
             next_tag_list += [t+a for t in tag_list for a in append]
         if next_tag_list:
             tag_list = next_tag_list
-        # TODO: get tags for affixes
+
+        # Generate tags for affixes in the same way as for features
+        # Affixes are appended after the feature tags in the tag sequence
+        if affixes:
+            next_tag_list = []
+            for seq in permutations(sorted(affixes)):
+                append = ['']
+                for label, value in seq:
+                    append = [f'{a}.{value}' for a in append] + \
+                        [f'{a}.{value}.*' for a in append]
+                next_tag_list += [t+a for t in tag_list for a in append]
+            tag_list = next_tag_list
 
         # Create the new <def-cat>
         elem = ET.SubElement(self.GetSection('section-def-cats'), 'def-cat',
@@ -1249,8 +1266,14 @@ class RuleGenerator:
                 return False
 
             # Capitalize the word based on its position in the rule.
-            # TODO: check that it's not a proper noun
-            if index == 0 and (pos != '1' or shouldUseLemmaMacro):
+            # Check if this word is a proper noun - if so, skip capitalization transfer
+            # to preserve the proper noun's inherent capitalization.
+            isProperNoun = (self.properNounCategory and cat == self.properNounCategory)
+
+            if isProperNoun:
+                # Proper nouns maintain their own capitalization
+                lemCase = lu
+            elif index == 0 and (pos != '1' or shouldUseLemmaMacro):
                 lemCase = ET.SubElement(lu, 'get-case-from', pos='1')
             elif index > 0 and pos == '1' and index < len(sourceWords):
                 # The last condition applies when we have an inserted word,
@@ -1549,12 +1572,18 @@ class RuleGenerator:
 # Wrapper function which calls the necessary logic to write rules to the Aperitum file
 def CreateRules(sourceDB, targetDB, report, configMap, ruleAssistantFile, transferRulePath, ruleNumber):
 
-    # TODO check for proper reading mode ("w" or "wb")
+    # Read the Rule Assistant file with proper encoding and error handling
     try:
-        with open(ruleAssistantFile, "r") as rulesAssistant:
+        with open(ruleAssistantFile, "r", encoding='utf-8') as rulesAssistant:
             assistantTree = ET.parse(rulesAssistant)
-    except:
-        report.Error(_translate('CreateApertiumRules', 'No Rule Assistant file found, please run the Set Up Transfer Rule Categories and Attributes tool'))
+    except FileNotFoundError:
+        report.Error(_translate('CreateApertiumRules', 'Rule Assistant file not found at {path}. Please run the Set Up Transfer Rule Categories and Attributes tool.').format(path=ruleAssistantFile))
+        return -1
+    except ET.ParseError as e:
+        report.Error(_translate('CreateApertiumRules', 'Error parsing Rule Assistant file: {error}').format(error=str(e)))
+        return -1
+    except Exception as e:
+        report.Error(_translate('CreateApertiumRules', 'Error reading Rule Assistant file: {error}').format(error=str(e)))
         return -1
 
     generator = RuleGenerator(sourceDB, targetDB, report, configMap)
