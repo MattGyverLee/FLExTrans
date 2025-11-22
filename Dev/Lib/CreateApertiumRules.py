@@ -49,8 +49,9 @@ import dataclasses
 
 from PyQt5.QtCore import QCoreApplication
 
-from flextoolslib import FTM_Name                                                 
+from flextoolslib import FTM_Name
 
+import ReadConfig
 import Utils
 
 # Define _translate for convenience
@@ -132,6 +133,11 @@ class RuleGenerator:
         self.targetDB = targetDB
         self.report = report
         self.configMap = configMap
+
+        # Get the proper noun category from configuration (e.g., 'np' for proper nouns)
+        # This is used to avoid applying capitalization rules to proper nouns
+        self.properNounCategory = ReadConfig.getConfigVal(
+            configMap, ReadConfig.PROPER_NOUN_CATEGORY, report, giveError=False)
 
         # Map each part of speech to a list of parent POSes
         self.sourceHierarchy = Utils.getCategoryHierarchy(sourceDB)
@@ -1249,8 +1255,14 @@ class RuleGenerator:
                 return False
 
             # Capitalize the word based on its position in the rule.
-            # TODO: check that it's not a proper noun
-            if index == 0 and (pos != '1' or shouldUseLemmaMacro):
+            # Check if this word is a proper noun - if so, skip capitalization transfer
+            # to preserve the proper noun's inherent capitalization.
+            isProperNoun = (self.properNounCategory and cat == self.properNounCategory)
+
+            if isProperNoun:
+                # Proper nouns maintain their own capitalization
+                lemCase = lu
+            elif index == 0 and (pos != '1' or shouldUseLemmaMacro):
                 lemCase = ET.SubElement(lu, 'get-case-from', pos='1')
             elif index > 0 and pos == '1' and index < len(sourceWords):
                 # The last condition applies when we have an inserted word,
