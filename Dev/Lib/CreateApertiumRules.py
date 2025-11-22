@@ -1549,12 +1549,18 @@ class RuleGenerator:
 # Wrapper function which calls the necessary logic to write rules to the Aperitum file
 def CreateRules(sourceDB, targetDB, report, configMap, ruleAssistantFile, transferRulePath, ruleNumber):
 
-    # TODO check for proper reading mode ("w" or "wb")
+    # Read the Rule Assistant file with proper encoding and error handling
     try:
-        with open(ruleAssistantFile, "r") as rulesAssistant:
+        with open(ruleAssistantFile, "r", encoding='utf-8') as rulesAssistant:
             assistantTree = ET.parse(rulesAssistant)
-    except:
-        report.Error(_translate('CreateApertiumRules', 'No Rule Assistant file found, please run the Set Up Transfer Rule Categories and Attributes tool'))
+    except FileNotFoundError:
+        report.Error(_translate('CreateApertiumRules', 'Rule Assistant file not found at {path}. Please run the Set Up Transfer Rule Categories and Attributes tool.').format(path=ruleAssistantFile))
+        return -1
+    except ET.ParseError as e:
+        report.Error(_translate('CreateApertiumRules', 'Error parsing Rule Assistant file: {error}').format(error=str(e)))
+        return -1
+    except Exception as e:
+        report.Error(_translate('CreateApertiumRules', 'Error reading Rule Assistant file: {error}').format(error=str(e)))
         return -1
 
     generator = RuleGenerator(sourceDB, targetDB, report, configMap)
