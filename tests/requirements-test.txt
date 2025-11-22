@@ -1,0 +1,13 @@
+# Test dependencies for FLExTrans Rule Assistant tests
+
+# Core testing framework
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+
+# Test utilities
+pytest-html>=3.1.0
+pytest-xdist>=3.0.0  # for parallel test execution
+
+# Code quality
+pytest-flake8>=1.1.0  # optional: code style checking
