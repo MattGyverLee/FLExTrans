@@ -181,6 +181,11 @@ class RuleGenerator:
         # The <section-*> elements of the XML tree
         self.sections: dict[str: ET.Element] = {}
 
+        # Track content from the original transfer file to preserve it
+        self.originalVariables: set[str] = set()
+        self.originalMacros: set[str] = set()
+        self.originalSections: set[str] = set()
+
         # Attributes for tracking split gender agreement
         self.BantuMacro: Optional[str] = None
         self.BantuVariable: Optional[str] = None
@@ -275,11 +280,19 @@ class RuleGenerator:
         '''Load an existing transfer file.
 
         The primary function of most of this is extracting a list of IDs
-        that have already been used so as to avoid name conflicts.'''
+        that have already been used so as to avoid name conflicts.
+
+        Also tracks which sections, variables, and macros existed in the
+        original file so they can be preserved even if unused.'''
 
         parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True))
         tree = ET.parse(fileName, parser=parser)
         self.root = tree.getroot()
+
+        # Track which sections existed in the original file
+        for section in self.root:
+            if section.tag in RuleGenerator.SectionSequence:
+                self.originalSections.add(section.tag)
 
         for cat in self.root.findall('.//def-cat'):
             name = cat.get('n')
@@ -304,6 +317,8 @@ class RuleGenerator:
             val = var.get('v')
             self.usedIDs.add(name)
             self.variables[name] = val
+            # Track original variables to preserve them
+            self.originalVariables.add(name)
 
         for lst in self.root.findall('.//def-list'):
             name = lst.get('n')
@@ -312,7 +327,10 @@ class RuleGenerator:
             self.lists[name] = values
 
         for macro in self.root.findall('.//def-macro'):
-            self.usedIDs.add(macro.get('n'))
+            name = macro.get('n')
+            self.usedIDs.add(name)
+            # Track original macros to preserve them
+            self.originalMacros.add(name)
             # The block below allows multi-source macros to be reused,
             # but this causes some problems, so we're disabling it for now.
             # See #661
@@ -1406,11 +1424,14 @@ class RuleGenerator:
 
     def TrimUnused(self) -> None:
         '''Delete macros and variables which have become unused as a result of
-        deleting old rules.'''
+        deleting old rules.
 
-        names = [('section-def-macros', 'def-macro', 'call-macro'),
-                 ('section-def-vars', 'def-var', 'var')]
-        for sectionName, defTag, callTag in names:
+        Note: Preserves variables and macros that existed in the original
+        transfer file to avoid data loss.'''
+
+        names = [('section-def-macros', 'def-macro', 'call-macro', self.originalMacros),
+                 ('section-def-vars', 'def-var', 'var', self.originalVariables)]
+        for sectionName, defTag, callTag, originalItems in names:
             used = set(c.attrib.get('n') for c in self.root.iter(callTag))
             drop = []
             section = self.GetSection(sectionName)
@@ -1418,9 +1439,16 @@ class RuleGenerator:
             for node in section:
                 if node.tag is ET.Comment:
                     comments.append(node)
-                    continue                                             
-                # We may have a Bantu macro or variable already added, leave it 
-                if node.tag != defTag or node.attrib.get('n') in used or re.search(BANTU_NOUN_CLASS_FROM_N, node.attrib.get('n')):
+                    continue
+                itemName = node.attrib.get('n')
+                # Preserve items that are:
+                # - used in the current rule set
+                # - from the original transfer file (user-defined)
+                # - Bantu-related (special case)
+                if (node.tag != defTag or
+                    itemName in used or
+                    itemName in originalItems or
+                    re.search(BANTU_NOUN_CLASS_FROM_N, itemName)):
                     comments = []
                     continue
                 drop += comments
@@ -1534,10 +1562,15 @@ class RuleGenerator:
         '''Write the generated transfer rules XML to `fileName`.'''
 
         # The transfer DTD doesn't allow sections to be empty,
-        # so simply don't include them in that case.
+        # so remove empty sections that were created during processing.
+        # However, preserve sections that existed in the original file,
+        # even if they're now empty, to maintain the file structure.
         for name in RuleGenerator.SectionSequence:
             elem = self.GetSection(name)
-            if len(elem) == 0:
+            if len(elem) == 0 and name not in self.originalSections:
+                # Only remove sections that:
+                # 1. Are empty (have no children)
+                # 2. Were NOT in the original file
                 self.root.remove(elem)
 
         with open(fileName, 'wb') as fout:
