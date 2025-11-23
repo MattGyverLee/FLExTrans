@@ -465,10 +465,47 @@ def StartRuleAssistant(report, ruleAssistantFile, ruleAssistGUIinputfile,
 #----------------------------------------------------------------
 # The main processing function
 def MainFunction(DB, report, modify=True, fromLRT=False):
+    """Rule Assistant main workflow.
+
+    DATA FLOW OVERVIEW:
+    ===================
+    1. FLEx Database (Source & Target) → Categories, Features, Affixes
+    2. RuleAssistantGUIinput.xml → GUI displays FLEx data
+    3. User creates rules in GUI → RuleAssistantRules.xml (persisted)
+    4. RuleAssistantRules.xml → CreateApertiumRules → transfer_rules.t1x
+
+    IMPORTANT - What gets read each time:
+    =====================================
+    - FLEx data: ALWAYS re-read from database (no cache)
+    - Rule specifications: Read from RuleAssistantRules.xml (persists between sessions)
+    - Transfer file: May be overwritten depending on rule settings
+
+    MANUAL EDITS:
+    =============
+    - Manual edits to transfer_rules.t1x: May be preserved or lost depending on:
+      * overwrite_rules="yes" → Regenerates sections, may lose manual edits
+      * overwrite_rules="no" → Adds to existing file, preserves more
+    - Manual edits to RuleAssistantRules.xml: Will be used by GUI
+    - FLEx project changes: Detected on EVERY run (no need to "reload")
+
+    WORKFLOW:
+    =========
+    Starting fresh:
+      1. Run "Set Up Transfer Rule Categories and Attributes" (pre-populate)
+      2. Run "Rule Assistant"
+      3. Create rules in GUI
+      4. Save → generates transfer_rules.t1x
+
+    With existing rules:
+      1. Rule Assistant loads RuleAssistantRules.xml (your rule tree)
+      2. FLEx data is refreshed from database
+      3. Edit rules or add new ones
+      4. Save → regenerates transfer_rules.t1x
+    """
 
     translators = []
     app = QApplication([])
-    Utils.loadTranslations(librariesToTranslate + [TRANSL_TS_NAME], 
+    Utils.loadTranslations(librariesToTranslate + [TRANSL_TS_NAME],
                            translators, loadBase=True)
 
     configMap = ReadConfig.readConfig(report)
@@ -479,6 +516,7 @@ def MainFunction(DB, report, modify=True, fromLRT=False):
     Mixpanel.LogModuleStarted(configMap, report, docs[FTM_Name], docs[FTM_Version])
 
     # Get the path to the rule assistant rules file
+    # This file persists your rule tree between sessions (RuleAssistantRules.xml)
     ruleAssistantFile = ReadConfig.getConfigVal(configMap, ReadConfig.RULE_ASSISTANT_FILE, report, giveError=False)
 
     if not ruleAssistantFile:
@@ -489,6 +527,8 @@ def MainFunction(DB, report, modify=True, fromLRT=False):
         ruleAssistantFile = os.path.join(buildFolder, 'RuleAssistantRules.xml')
 
     # Get the path to the transfer rules file
+    # This is the OUTPUT file that Rule Assistant generates (transfer_rules.t1x)
+    # WARNING: This file may be overwritten when you save rules!
     tranferRulePath = ReadConfig.getConfigVal(configMap, ReadConfig.TRANSFER_RULES_FILE, report, giveError=False)
 
     if not tranferRulePath:
@@ -496,20 +536,28 @@ def MainFunction(DB, report, modify=True, fromLRT=False):
 
     TargetDB = Utils.openTargetProject(configMap, report)
 
-    # Get the FLEx info. for source & target projects that the Rule Assistant font-end needs
+    # STEP 1: Extract FLEx data (categories, features, affixes)
+    # This is ALWAYS fresh from the database - never cached
+    # If you change FLEx, the changes appear immediately on next run
     startData = GetRuleAssistantStartData(report, DB, TargetDB, configMap)
 
-    # Write the data to an XML file
+    # STEP 2: Write FLEx data to GUI input file (temporary, regenerated each time)
     ruleAssistGUIinputfile = os.path.join(FTPaths.BUILD_DIR, Utils.RA_GUI_INPUT_FILE)
     startData.write(ruleAssistGUIinputfile)
 
     testData = GetTestDataFile(report, DB, configMap)
 
-    # Start the Rule Assistant GUI
+    # STEP 3: Start the Rule Assistant GUI
+    # The GUI reads:
+    # - RuleAssistantRules.xml (your rule tree - persists)
+    # - RuleAssistantGUIinput.xml (FLEx data - regenerated)
     saved, rule, lrt = StartRuleAssistant(report, ruleAssistantFile, ruleAssistGUIinputfile, testData, fromLRT=fromLRT)
 
     ruleCount = None
 
+    # STEP 4: If user saved, generate Apertium transfer rules
+    # This reads RuleAssistantRules.xml and generates transfer_rules.t1x
+    # Existing transfer_rules.t1x may be backed up or overwritten
     if saved:
         ruleCount = CreateApertiumRules.CreateRules(DB, TargetDB, report, configMap, ruleAssistantFile, tranferRulePath, rule)
     else:
