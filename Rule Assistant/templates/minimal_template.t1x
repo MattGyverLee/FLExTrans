@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE transfer PUBLIC "-//XMLmind//DTD transfer//EN" "transfer.dtd">
+<transfer>
+  <section-def-cats>
+    <!-- Categories will be populated by "Set Up Transfer Rule Categories and Attributes" -->
+  </section-def-cats>
+  <section-def-attrs>
+    <!-- Attributes will be populated by "Set Up Transfer Rule Categories and Attributes" -->
+  </section-def-attrs>
+  <section-def-vars>
+    <!-- Variables for macros will be added here as rules are created -->
+  </section-def-vars>
+  <section-def-lists>
+    <!-- Optional: Add lists for special handling of word groups -->
+  </section-def-lists>
+  <section-def-macros>
+    <!-- Macros will be generated automatically by Rule Assistant -->
+  </section-def-macros>
+  <section-rules>
+    <!-- Your transfer rules will appear here -->
+  </section-rules>
+</transfer>

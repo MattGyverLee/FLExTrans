@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE transfer PUBLIC "-//XMLmind//DTD transfer//EN" "transfer.dtd">
+<transfer>
+  <section-def-cats>
+    <!-- Categories define part-of-speech patterns to match -->
+    <!-- Example: Noun category -->
+    <!-- <def-cat n="c_n">
+      <cat-item tags="n" />
+      <cat-item tags="n.*" />
+    </def-cat> -->
+  </section-def-cats>
+
+  <section-def-attrs>
+    <!-- Attributes define the grammatical features used in rules -->
+    <!-- Example: Number attribute -->
+    <!-- <def-attr n="a_number">
+      <attr-item tags="sg" />
+      <attr-item tags="pl" />
+    </def-attr> -->
+  </section-def-attrs>
+
+  <section-def-vars>
+    <!-- Variables store intermediate values during rule processing -->
+  </section-def-vars>
+
+  <section-def-lists>
+    <!-- Lists can group words that behave similarly -->
+    <!-- Example: Common proper nouns -->
+    <!-- <def-list n="l_proper_nouns">
+      <list-item v="John" />
+      <list-item v="Mary" />
+    </def-list> -->
+  </section-def-lists>
+
+  <section-def-macros>
+    <!-- Macros are reusable code blocks for feature resolution -->
+    <!-- Rule Assistant generates these automatically -->
+  </section-def-macros>
+
+  <section-rules>
+    <!-- Transfer rules transform source → target structures -->
+    <!-- Rule Assistant will add rules here based on your specifications -->
+  </section-rules>
+</transfer>
